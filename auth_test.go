@@ -26,7 +26,8 @@ func TestPeerFromUnixConn(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(root) })
 	addr := filepath.Join(root, "peer.sock")
-	ln, err := net.Listen("unix", addr)
+	var lc net.ListenConfig
+	ln, err := lc.Listen(context.Background(), "unix", addr)
 	if err != nil {
 		t.Fatal(err)
 	}

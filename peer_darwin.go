@@ -4,7 +4,6 @@ package ipc
 
 import (
 	"net"
-	"unsafe"
 
 	"golang.org/x/sys/unix"
 )
@@ -18,15 +17,12 @@ func peerFromConn(conn net.Conn) (PeerContext, error) {
 	if err != nil {
 		return PeerContext{}, err
 	}
-	var cred unix.Ucred
+	var cred *unix.Xucred
 	var pid int
 	var ctlErr error
 	if err := raw.Control(func(fd uintptr) {
-		n := uint32(unsafe.Sizeof(cred))
-		_, _, e := unix.Syscall6(unix.SYS_GETSOCKOPT, fd, unix.SOL_LOCAL, unix.LOCAL_PEERCRED,
-			uintptr(unsafe.Pointer(&cred)), uintptr(unsafe.Pointer(&n)), 0)
-		if e != 0 {
-			ctlErr = e
+		cred, ctlErr = unix.GetsockoptXucred(int(fd), unix.SOL_LOCAL, unix.LOCAL_PEERCRED)
+		if ctlErr != nil {
 			return
 		}
 		pid, ctlErr = unix.GetsockoptInt(int(fd), unix.SOL_LOCAL, unix.LOCAL_PEERPID)
