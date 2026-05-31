@@ -251,3 +251,40 @@ func TestUnixHTTPClientNewRequestError(t *testing.T) {
 		t.Fatalf("err=%v", err)
 	}
 }
+
+func TestDialRetryDefaults(t *testing.T) {
+	addr := shortUnixAddr(t, "retry.sock")
+	ln, err := ListenUnix(addr, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+
+	conn, err := DialRetry(context.Background(), Addr{Unix: addr},
+		DialRetryInterval(0), DialRetryAttemptTimeout(0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = conn.Close()
+}
+
+func TestDialRetryCancelNoLastErr(t *testing.T) {
+	prevAttempt := dialAttempt
+	prevWait := dialRetryWait
+	dialAttempt = func(context.Context, Addr, time.Duration) (net.Conn, error) {
+		return nil, ErrUnixPathRequired
+	}
+	dialRetryWait = func(ctx context.Context, _ time.Duration) error {
+		return ctx.Err()
+	}
+	t.Cleanup(func() {
+		dialAttempt = prevAttempt
+		dialRetryWait = prevWait
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := DialRetry(ctx, Addr{Unix: "/tmp/x.sock"}); err == nil {
+		t.Fatal("expected error")
+	}
+}

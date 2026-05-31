@@ -332,3 +332,62 @@ func TestDialUnixEmptyPath(t *testing.T) {
 		t.Fatalf("err=%v", err)
 	}
 }
+
+func TestDialRetrySuccess(t *testing.T) {
+	t.Parallel()
+
+	addr, _ := testAddr(t)
+	ln, err := ipc.Listen(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+
+	ctx := context.Background()
+	conn, err := ipc.DialRetry(ctx, addr, ipc.DialRetryInterval(time.Millisecond))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+}
+
+func TestDialRetryCancel(t *testing.T) {
+	t.Parallel()
+
+	addr, _ := testAddr(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	_, err := ipc.DialRetry(ctx, addr, ipc.DialRetryInterval(time.Millisecond))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestDialRetryDelayedListen(t *testing.T) {
+	addr, _ := testAddr(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	ready := make(chan struct{})
+	go func() {
+		time.Sleep(150 * time.Millisecond)
+		ln, err := ipc.Listen(addr)
+		if err != nil {
+			t.Errorf("listen: %v", err)
+			return
+		}
+		<-ready
+		_ = ln.Close()
+	}()
+
+	conn, err := ipc.DialRetry(ctx, addr,
+		ipc.DialRetryInterval(10*time.Millisecond),
+		ipc.DialRetryAttemptTimeout(50*time.Millisecond),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	close(ready)
+	_ = conn.Close()
+}
