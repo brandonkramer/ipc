@@ -30,7 +30,7 @@ func RunUnixHTTP(ctx context.Context, addr string, mkdirParent bool, handler htt
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- srv.Serve(ln)
+		errCh <- unixServeLoop(srv, ln)
 	}()
 
 	select {
@@ -79,7 +79,7 @@ func (c *UnixHTTPClient) Get(ctx context.Context, path string, dest any) error {
 			return DialUnix(dctx, c.Addr)
 		}},
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://local"+path, http.NoBody)
+	req, err := newHTTPRequest(ctx, http.MethodGet, "http://local"+path, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("ipc: new GET %s: %w", path, err)
 	}

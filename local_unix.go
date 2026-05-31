@@ -41,18 +41,18 @@ func ListenUnix(addr string, mkdirParent bool) (net.Listener, error) {
 		return nil, ErrUnixPathRequired
 	}
 	if mkdirParent {
-		if err := os.MkdirAll(filepath.Dir(addr), 0o755); err != nil {
+		if err := unixMkdirAll(filepath.Dir(addr), 0o755); err != nil {
 			return nil, fmt.Errorf("ipc: mkdir parent for %s: %w", addr, err)
 		}
 	}
-	if err := os.Remove(addr); err != nil && !os.IsNotExist(err) {
+	if err := unixRemove(addr); err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("ipc: remove stale socket %s: %w", addr, err)
 	}
-	ln, err := net.Listen("unix", addr) //nolint:noctx // local unix socket bind
+	ln, err := unixNetListen("unix", addr)
 	if err != nil {
 		return nil, fmt.Errorf("ipc: listen unix %s: %w", addr, err)
 	}
-	if err := os.Chmod(addr, 0o600); err != nil {
+	if err := unixChmod(addr, 0o600); err != nil {
 		_ = ln.Close()
 		return nil, fmt.Errorf("ipc: chmod unix %s: %w", addr, err)
 	}
