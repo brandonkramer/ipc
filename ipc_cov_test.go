@@ -288,3 +288,33 @@ func TestDialRetryCancelNoLastErr(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestPeerContextAuthorization(t *testing.T) {
+	t.Parallel()
+
+	trusted := TrustedPeer()
+	if !trusted.CanRead() || !trusted.CanWrite() {
+		t.Fatal("trusted peer should allow read/write")
+	}
+
+	foreign := PeerContext{Level: PeerLevelLocal, UID: os.Getuid() + 1}
+	if foreign.CanRead() || foreign.CanWrite() || foreign.IsLocal() {
+		t.Fatal("foreign uid should be denied")
+	}
+
+	unknown := PeerContext{Level: PeerLevelUnknown}
+	if unknown.CanRead() || unknown.CanWrite() {
+		t.Fatal("unknown peer should be denied")
+	}
+}
+
+func TestPeerUnsupportedConnError(t *testing.T) {
+	t.Parallel()
+
+	c1, c2 := net.Pipe()
+	t.Cleanup(func() { _ = c1.Close(); _ = c2.Close() })
+	_, err := PeerFromConn(c1)
+	if !errors.Is(err, ErrUnsupportedConn) {
+		t.Fatalf("err=%v", err)
+	}
+}
